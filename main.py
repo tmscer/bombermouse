@@ -3,7 +3,6 @@
 import websocket
 import json
 
-AUTH_STRING = "player8:1111"
 
 # {
 # 	"turns_to_flamout": 1, // jak dlouho žije oheň
@@ -26,18 +25,19 @@ DANGERS = {FIRE, PFIRE, BOMB}
 UNWALKABLE = {WALL, BOMB, FIRE, BREAKABLE}
 
 game_config = None
-mem = {}
-
-
-# def is_dangerous(c):
-#     return c == BOMB or c == FIRE
+mem = {'counter': 0, 'bomb': False}
 
 
 def get_board(state):
+    global mem
     len_x = len(state['Board'])
     len_y = len(state['Board'][0])
-    board = [[None] * len_y] * len_x
-    bombs = []
+    board = [[None for _ in range(len_y)] for _ in range(len_x)]
+    if not mem['bomb']:
+        bombs = []
+    else:
+        bombs = [(state['X'], state['Y'])]
+        mem['bomb'] = False
     for x in range(len_x):
         for y in range(len_y):
             board[x][y] = state['Board'][x][y]
@@ -69,6 +69,8 @@ def get_board(state):
             if board[x][y] == WALL or board[x][y] == BOMB or board[x][y] == BREAKABLE:
                 break
             board[x][y] = PFIRE
+    # for p in board:
+    #     print(p)
     return board
 
 
@@ -85,8 +87,8 @@ def escape_to_safety(state, board):
     queue = [
         (curr_x + 1, curr_y, 'right'),
         (curr_x - 1, curr_y, 'left'),
-        (curr_x, curr_y + 1, 'down'),
-        (curr_x, curr_y - 1, 'up'),
+        (curr_x, curr_y + 1, 'up'),
+        (curr_x, curr_y - 1, 'down'),
     ]
     i = 0
     while i < len(queue):
@@ -97,25 +99,47 @@ def escape_to_safety(state, board):
         if cant_walk(board, sq_x, sq_y):
             continue
         if not is_dangerous(board, sq_x, sq_y):
+            print(queue)
             return direction
-        queue += [
-            (sq_x + 1, sq_y, direction),
-            (sq_x - 1, sq_y, direction),
-            (sq_x, sq_y + 1, direction),
-            (sq_x, sq_y - 1, direction),
-        ]
+        if direction != 'left':
+            queue.append((sq_x + 1, sq_y, direction))
+        if direction != 'right':
+            queue.append((sq_x - 1, sq_y, direction))
+        if direction != 'down':
+            queue.append((sq_x, sq_y + 1, direction))
+        if direction != 'up':
+            queue.append((sq_x, sq_y - 1, direction))
     return 'waiting for death... :/'
 
 
 def bounty_hunt(state, board):
-    curr_x, curr_y = state['X'], state['Y']
-    return 'nothing'
+    # curr_x, curr_y = state['X'], state['Y']
+    global mem
+    if mem['counter'] > 9:
+        mem['bomb'] = True
+        mem['counter'] = 0
+        return 'bomb'
+    else:
+        return 'nothing'
 
 
+j = 0
 # policko_v_pravo = state['Board'][curr_x + 1][curr_y]
+
+
 def do_move(state):
+    global mem
+    mem['counter'] += 1
+    # TODO: REMOVE
+    if mem['counter'] == 0:
+        return 'down'
+    elif mem['counter'] == 1:
+        return 'bomb'
+    elif mem['counter'] == 2:
+        return 'left'
     curr_x, curr_y = state['X'], state['Y']
     board = get_board(state)
+    print(curr_x, curr_y, board[curr_x][curr_y])
     if is_dangerous(board, curr_x, curr_y):
         # find path to safety
         return escape_to_safety(state, board)
@@ -158,12 +182,12 @@ def on_close(ws):
 
 
 def on_open(ws):
-    ws.send(AUTH_STRING)
+    ws.send("player9:abc")
 
 
 if '__main__' == __name__:
     ws = websocket.WebSocketApp(
-        "ws://bomberman.ksp:8003/",
+        "ws://bomberman.ksp:8000",
         on_message=on_message,
         on_error=on_error,
         on_close=on_close,
