@@ -21,8 +21,10 @@ UPGRADE_RAD = 'r'
 WALL = '#'
 BREAKABLE = '.'
 SPACE = ' '
+
 DANGERS = {FIRE, PFIRE, BOMB}
 UNWALKABLE = {WALL, BOMB, FIRE, BREAKABLE}
+WALKABLE = {SPACE, UPGRADE_INV, UPGRADE_RAD}
 
 game_config = None
 mem = {'counter': 0, 'bomb': False}
@@ -33,11 +35,11 @@ def get_board(state):
     len_x = len(state['Board'])
     len_y = len(state['Board'][0])
     board = [[None for _ in range(len_y)] for _ in range(len_x)]
-    if not mem['bomb']:
-        bombs = []
-    else:
+    if mem['bomb']:
         bombs = [(state['X'], state['Y'])]
         mem['bomb'] = False
+    else:
+        bombs = []
     for x in range(len_x):
         for y in range(len_y):
             board[x][y] = state['Board'][x][y]
@@ -82,6 +84,23 @@ def cant_walk(board, x, y):
     return board[x][y] in UNWALKABLE
 
 
+def possible_choices(board, curr_x, curr_y):
+    choices = []
+    if board[curr_x + 1][curr_y] in WALKABLE:
+        print('added %s' % board[curr_x + 1][curr_y])
+        choices.append('right')
+    if board[curr_x - 1][curr_y] in WALKABLE:
+        print('added %s' % board[curr_x - 1][curr_y])
+        choices.append('left')
+    if board[curr_x][curr_y + 1] in WALKABLE:
+        print('added %s' % board[curr_x][curr_y + 1])
+        choices.append('up')
+    if board[curr_x][curr_y - 1] in WALKABLE:
+        print('added %s' % board[curr_x][curr_y - 1])
+        choices.append('down')
+    return choices
+
+
 def escape_to_safety(state, board):
     print('escape')
     curr_x, curr_y = state['X'], state['Y']
@@ -116,29 +135,18 @@ def escape_to_safety(state, board):
 
 
 def bounty_hunt(state, board):
-    print('bounty_hunt')
     curr_x, curr_y = state['X'], state['Y']
     global mem, game_config
     if mem['counter'] > 3 + \
             game_config['turns_to_explode'] + \
             game_config['turns_to_flamout']:
+        print('bounty_hunt - bomb')
         mem['bomb'] = True
         mem['counter'] = 0
         return 'bomb'
-    choices = []
-    sett = {SPACE, UPGRADE_INV, UPGRADE_RAD}
-    if board[curr_x + 1][curr_y] in sett and not is_dangerous(board, curr_x, curr_y):
-        choices.append('right')
-    if board[curr_x - 1][curr_y] in sett and not is_dangerous(board, curr_x, curr_y):
-        choices.append('left')
-    if board[curr_x][curr_y + 1] in sett and not is_dangerous(board, curr_x, curr_y):
-        choices.append('up')
-    if board[curr_x][curr_y - 1] in sett and not is_dangerous(board, curr_x, curr_y):
-        choices.append('down')
+    print('bounty hunt - random')
+    choices = possible_choices(board, curr_x, curr_y)
     return random.choice(choices)
-
-
-j = 0
 
 
 # policko_v_pravo = state['Board'][curr_x + 1][curr_y]
@@ -146,15 +154,18 @@ j = 0
 
 def do_move(state):
     global mem
+    board = get_board(state)
+    curr_x, curr_y = state['X'], state['Y']
     mem['counter'] += 1
     if mem['counter'] == 0:
-        return 'down'
+        choices = possible_choices(board, curr_x, curr_y)
+        return random.choice(choices)
     elif mem['counter'] == 1:
+        mem['bomb'] = True
         return 'bomb'
     elif mem['counter'] == 2:
-        return 'left'
-    curr_x, curr_y = state['X'], state['Y']
-    board = get_board(state)
+        choices = possible_choices(board, curr_x, curr_y)
+        return random.choice(choices)
     print(curr_x, curr_y, board[curr_x][curr_y])
     if is_dangerous(board, curr_x, curr_y):
         # find path to safety
@@ -199,13 +210,13 @@ def on_close(ws):
 
 
 def on_open(ws):
-    ws.send("player9:1111")
+    ws.send("player6:1111")
     # ws.send("player9:abc")
 
 
 if '__main__' == __name__:
     ws = websocket.WebSocketApp(
-        "ws://bomberman.ksp:8001",
+        "ws://192.168.1.100:8001",
         on_message=on_message,
         on_error=on_error,
         on_close=on_close,
