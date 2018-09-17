@@ -83,39 +83,45 @@ def cant_walk(board, x, y):
 
 
 def escape_to_safety(state, board):
+    print('escape')
     curr_x, curr_y = state['X'], state['Y']
     queue = [
-        (curr_x + 1, curr_y, 'right'),
-        (curr_x - 1, curr_y, 'left'),
-        (curr_x, curr_y + 1, 'up'),
-        (curr_x, curr_y - 1, 'down'),
+        # x, y, move to do, last direction
+        (curr_x + 1, curr_y, 'right', 'left'),
+        (curr_x - 1, curr_y, 'left', 'right'),
+        (curr_x, curr_y + 1, 'up', 'down'),
+        (curr_x, curr_y - 1, 'down', 'up'),
     ]
     i = 0
     while i < len(queue):
         sq_x = queue[i][0]
         sq_y = queue[i][1]
-        direction = queue[i][2]
+        move_to_do = queue[i][2]
+        direction = queue[i][3]
         i += 1
         if cant_walk(board, sq_x, sq_y):
             continue
         if not is_dangerous(board, sq_x, sq_y):
-            print(queue)
-            return direction
+            # print(queue)
+            return move_to_do
         if direction != 'left':
-            queue.append((sq_x + 1, sq_y, direction))
+            queue.append((sq_x + 1, sq_y, move_to_do, 'right'))
         if direction != 'right':
-            queue.append((sq_x - 1, sq_y, direction))
+            queue.append((sq_x - 1, sq_y, move_to_do, 'left'))
         if direction != 'down':
-            queue.append((sq_x, sq_y + 1, direction))
+            queue.append((sq_x, sq_y + 1, move_to_do, 'up'))
         if direction != 'up':
-            queue.append((sq_x, sq_y - 1, direction))
+            queue.append((sq_x, sq_y - 1, move_to_do, 'down'))
     return 'waiting for death... :/'
 
 
 def bounty_hunt(state, board):
+    print('bounty_hunt')
     curr_x, curr_y = state['X'], state['Y']
-    global mem
-    if mem['counter'] > 9:
+    global mem, game_config
+    if mem['counter'] > 3 + \
+            game_config['turns_to_explode'] + \
+            game_config['turns_to_flamout']:
         mem['bomb'] = True
         mem['counter'] = 0
         return 'bomb'
@@ -129,7 +135,7 @@ def bounty_hunt(state, board):
         choices.append('up')
     if board[curr_x][curr_y - 1] in sett:
         choices.append('down')
-    return random.choices(choices)
+    return random.choice(choices)
 
 
 j = 0
@@ -141,7 +147,6 @@ j = 0
 def do_move(state):
     global mem
     mem['counter'] += 1
-    # TODO: REMOVE
     if mem['counter'] == 0:
         return 'down'
     elif mem['counter'] == 1:
@@ -193,12 +198,13 @@ def on_close(ws):
 
 
 def on_open(ws):
-    ws.send("player9:abc")
+    ws.send("player8:1111")
+    # ws.send("player9:abc")
 
 
 if '__main__' == __name__:
     ws = websocket.WebSocketApp(
-        "ws://bomberman.ksp:8000",
+        "ws://bomberman.ksp:8003",
         on_message=on_message,
         on_error=on_error,
         on_close=on_close,
