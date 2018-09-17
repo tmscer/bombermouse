@@ -129,6 +129,80 @@ def escape_to_safety(state, board):
     return 'waiting for death... :/'
 
 
+def get_score(board, sq_x, sq_y, rad):
+    score = 0
+    for i in range(1, rad + 1):
+        x = sq_x + i
+        y = sq_y
+        if board[x][y] == BREAKABLE:
+            score += game_config['points_per_wall']
+            break
+        elif board[x][y] == PLAYER:
+            score += game_config['points_per_kill']
+    for i in range(1, rad + 1):
+        x = sq_x - i
+        y = sq_y
+        if board[x][y] == BREAKABLE:
+            score += game_config['points_per_wall']
+            break
+        elif board[x][y] == PLAYER:
+            score += game_config['points_per_kill']
+    for i in range(1, rad + 1):
+        x = sq_x
+        y = sq_y + i
+        if board[x][y] == BREAKABLE:
+            score += game_config['points_per_wall']
+            break
+        elif board[x][y] == PLAYER:
+            score += game_config['points_per_kill']
+    for i in range(1, rad + 1):
+        x = sq_x
+        y = sq_y - i
+        if board[x][y] == BREAKABLE:
+            score += game_config['points_per_wall']
+            break
+        elif board[x][y] == PLAYER:
+            score += game_config['points_per_kill']
+    return score
+
+
+def find_richest_square(state, board):
+    print('escape')
+    curr_x, curr_y = state['X'], state['Y']
+    queue = [
+        # (x, y, move to do, last direction)
+        (curr_x + 1, curr_y, 'right', 'left'),
+        (curr_x - 1, curr_y, 'left', 'right'),
+        (curr_x, curr_y + 1, 'down', 'up'),
+        (curr_x, curr_y - 1, 'up', 'down'),
+    ]
+    i = 0
+    score = get_score(board, curr_x, curr_y, state['Radius'])
+    # (x, y, score, action)
+    best_found = (curr_x, curr_y, score, 'bomb')
+    while i < len(queue) and i < 30:
+        sq_x = queue[i][0]
+        sq_y = queue[i][1]
+        move_to_do = queue[i][2]
+        direction = queue[i][3]
+        i += 1
+        if cant_walk(board, sq_x, sq_y):
+            continue
+        score = get_score(board, sq_x, sq_y, state['Radius'])
+        if score > best_found[2]:
+            best_found = (sq_x, sq_y, score, move_to_do)
+
+        if direction != 'right':
+            queue.append((sq_x + 1, sq_y, move_to_do, 'left'))
+        if direction != 'left':
+            queue.append((sq_x - 1, sq_y, move_to_do, 'right'))
+        if direction != 'down':
+            queue.append((sq_x, sq_y + 1, move_to_do, 'up'))
+        if direction != 'up':
+            queue.append((sq_x, sq_y - 1, move_to_do, 'down'))
+    return score[3]  # return move_to_do
+
+
 def bounty_hunt(state, board):
     curr_x, curr_y = state['X'], state['Y']
     global mem, game_config
@@ -139,8 +213,10 @@ def bounty_hunt(state, board):
         mem['counter'] = 0
         return 'bomb'
     else:
-        choices = possible_choices(board, curr_x, curr_y)
-        return random.choice(choices)
+        return find_richest_square(state, board)
+        # choices = possible_choices(board, curr_x, curr_y)
+        # return random.choice(choices)
+
 
 
 # policko_v_pravo = state['Board'][curr_x + 1][curr_y]
@@ -189,6 +265,9 @@ def on_message(ws, message):
 
     response = do_move(state)
     print(response)
+    if response == 'bomb':
+        mem['bomb'] = True
+        mem['counter'] = 0
     ws.send(response)
     return
 
