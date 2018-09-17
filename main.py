@@ -127,13 +127,13 @@ def bounty_hunt(state, board):
         return 'bomb'
     choices = []
     sett = {SPACE, UPGRADE_INV, UPGRADE_RAD}
-    if board[curr_x + 1][curr_y] in sett:
+    if board[curr_x + 1][curr_y] in sett and not is_dangerous(board, curr_x, curr_y):
         choices.append('right')
-    if board[curr_x - 1][curr_y] in sett:
+    if board[curr_x - 1][curr_y] in sett and not is_dangerous(board, curr_x, curr_y):
         choices.append('left')
-    if board[curr_x][curr_y + 1] in sett:
+    if board[curr_x][curr_y + 1] in sett and not is_dangerous(board, curr_x, curr_y):
         choices.append('up')
-    if board[curr_x][curr_y - 1] in sett:
+    if board[curr_x][curr_y - 1] in sett and not is_dangerous(board, curr_x, curr_y):
         choices.append('down')
     return random.choice(choices)
 
@@ -180,6 +180,7 @@ def on_message(ws, message):
 
     if not state['Alive']:
         print("We died")
+        print("Final score: %s" % state['Points'])
         ws.close()
         return
 
@@ -198,13 +199,13 @@ def on_close(ws):
 
 
 def on_open(ws):
-    ws.send("player8:1111")
+    ws.send("player9:1111")
     # ws.send("player9:abc")
 
 
 if '__main__' == __name__:
     ws = websocket.WebSocketApp(
-        "ws://bomberman.ksp:8003",
+        "ws://bomberman.ksp:8001",
         on_message=on_message,
         on_error=on_error,
         on_close=on_close,
