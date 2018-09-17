@@ -27,7 +27,7 @@ UNWALKABLE = {WALL, BOMB, FIRE, BREAKABLE}
 WALKABLE = {SPACE, UPGRADE_INV, UPGRADE_RAD}
 
 game_config = None
-mem = {'counter': 0, 'bomb': False}
+mem = {'counter': 0, 'bomb': False, 'first_move': False}
 
 
 def get_board(state):
@@ -46,29 +46,30 @@ def get_board(state):
             if board[x][y] == BOMB:
                 bombs.append((x, y))
     radius = max((p['Radius'] for p in state['Players']))
+    stop_set = {WALL, BOMB, BREAKABLE}
     for bom in bombs:
         for i in range(1, radius + 1):
             x = bom[0] + i
             y = bom[1]
-            if board[x][y] == WALL or board[x][y] == BOMB or board[x][y] == BREAKABLE:
+            if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
         for i in range(1, radius + 1):
             x = bom[0] - i
             y = bom[1]
-            if board[x][y] == WALL or board[x][y] == BOMB or board[x][y] == BREAKABLE:
+            if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
         for i in range(1, radius + 1):
             x = bom[0]
             y = bom[1] + i
-            if board[x][y] == WALL or board[x][y] == BOMB or board[x][y] == BREAKABLE:
+            if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
         for i in range(1, radius + 1):
             x = bom[0]
             y = bom[1] - i
-            if board[x][y] == WALL or board[x][y] == BOMB or board[x][y] == BREAKABLE:
+            if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
     # for p in board:
@@ -87,16 +88,16 @@ def cant_walk(board, x, y):
 def possible_choices(board, curr_x, curr_y):
     choices = []
     if board[curr_x + 1][curr_y] in WALKABLE:
-        print('added %s' % board[curr_x + 1][curr_y])
+        print('added %s' % 'right')
         choices.append('right')
     if board[curr_x - 1][curr_y] in WALKABLE:
-        print('added %s' % board[curr_x - 1][curr_y])
+        print('added %s' % 'left')
         choices.append('left')
     if board[curr_x][curr_y + 1] in WALKABLE:
-        print('added %s' % board[curr_x][curr_y + 1])
+        print('added %s' % 'up')
         choices.append('up')
     if board[curr_x][curr_y - 1] in WALKABLE:
-        print('added %s' % board[curr_x][curr_y - 1])
+        print('added %s' % 'down')
         choices.append('down')
     return choices
 
@@ -105,7 +106,7 @@ def escape_to_safety(state, board):
     print('escape')
     curr_x, curr_y = state['X'], state['Y']
     queue = [
-        # x, y, move to do, last direction
+        # (x, y, move to do, last direction)
         (curr_x + 1, curr_y, 'right', 'left'),
         (curr_x - 1, curr_y, 'left', 'right'),
         (curr_x, curr_y + 1, 'up', 'down'),
@@ -123,10 +124,10 @@ def escape_to_safety(state, board):
         if not is_dangerous(board, sq_x, sq_y):
             # print(queue)
             return move_to_do
-        if direction != 'left':
-            queue.append((sq_x + 1, sq_y, move_to_do, 'right'))
         if direction != 'right':
-            queue.append((sq_x - 1, sq_y, move_to_do, 'left'))
+            queue.append((sq_x + 1, sq_y, move_to_do, 'left'))
+        if direction != 'left':
+            queue.append((sq_x - 1, sq_y, move_to_do, 'right'))
         if direction != 'down':
             queue.append((sq_x, sq_y + 1, move_to_do, 'up'))
         if direction != 'up':
@@ -157,13 +158,9 @@ def do_move(state):
     board = get_board(state)
     curr_x, curr_y = state['X'], state['Y']
     mem['counter'] += 1
-    if mem['counter'] == 0:
-        choices = possible_choices(board, curr_x, curr_y)
-        return random.choice(choices)
-    elif mem['counter'] == 1:
-        mem['bomb'] = True
-        return 'bomb'
-    elif mem['counter'] == 2:
+    if not mem['first_move']:
+        mem['first_move'] = True
+        mem['counter'] = 6
         choices = possible_choices(board, curr_x, curr_y)
         return random.choice(choices)
     print(curr_x, curr_y, board[curr_x][curr_y])
@@ -209,17 +206,13 @@ def on_close(ws):
     print("### closed ###")
 
 
-def on_open(ws):
-    ws.send("player6:1111")
-    # ws.send("player9:abc")
-
-
 if '__main__' == __name__:
+    player_n = input('> ')
     ws = websocket.WebSocketApp(
         "ws://192.168.1.100:8001",
         on_message=on_message,
         on_error=on_error,
         on_close=on_close,
-        on_open=on_open
+        on_open=lambda w: w.send("player%s:1111" % player_n)
     )
     ws.run_forever()
