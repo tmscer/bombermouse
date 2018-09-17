@@ -2,7 +2,7 @@
 
 import websocket
 import json
-
+import random
 
 # {
 # 	"turns_to_flamout": 1, // jak dlouho žije oheň
@@ -113,17 +113,28 @@ def escape_to_safety(state, board):
 
 
 def bounty_hunt(state, board):
-    # curr_x, curr_y = state['X'], state['Y']
+    curr_x, curr_y = state['X'], state['Y']
     global mem
     if mem['counter'] > 9:
         mem['bomb'] = True
         mem['counter'] = 0
         return 'bomb'
-    else:
-        return 'nothing'
+    choices = []
+    sett = {SPACE, UPGRADE_INV, UPGRADE_RAD}
+    if board[curr_x + 1][curr_y] in sett:
+        choices.append('right')
+    if board[curr_x - 1][curr_y] in sett:
+        choices.append('left')
+    if board[curr_x][curr_y + 1] in sett:
+        choices.append('up')
+    if board[curr_x][curr_y - 1] in sett:
+        choices.append('down')
+    return random.choices(choices)
 
 
 j = 0
+
+
 # policko_v_pravo = state['Board'][curr_x + 1][curr_y]
 
 
