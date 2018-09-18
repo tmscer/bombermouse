@@ -47,25 +47,25 @@ def get_board(state):
     radius = max((p['Radius'] for p in state['Players']))
     stop_set = {WALL, BOMB, BREAKABLE}
     for bom in bombs:
-        for i in range(1, radius):
+        for i in range(1, radius + 1):
             x = bom[0] + i
             y = bom[1]
             if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
-        for i in range(1, radius):
+        for i in range(1, radius + 1):
             x = bom[0] - i
             y = bom[1]
             if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
-        for i in range(1, radius):
+        for i in range(1, radius + 1):
             x = bom[0]
             y = bom[1] + i
             if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
-        for i in range(1, radius):
+        for i in range(1, radius + 1):
             x = bom[0]
             y = bom[1] - i
             if board[x][y] in stop_set:
