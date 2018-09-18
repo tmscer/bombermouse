@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
-import websocket
 import json
 import random
+
+import websocket
 
 # {
 # 	"turns_to_flamout": 1, // jak dlouho žije oheň
@@ -23,11 +24,11 @@ BREAKABLE = '.'
 SPACE = ' '
 
 DANGERS = {FIRE, PFIRE, BOMB}
-UNWALKABLE = {WALL, BOMB, BREAKABLE}
+UNWALKABLE = {WALL, BOMB, BREAKABLE, FIRE}
 WALKABLE = {SPACE, UPGRADE_INV, UPGRADE_RAD}
 
 game_config = None
-mem = {'counter': 0, 'bomb': False, 'first_move': False}
+mem = {'counter': 0, 'bomb': False, 'first_move': True}
 
 
 def get_board(state):
@@ -46,25 +47,25 @@ def get_board(state):
     radius = max((p['Radius'] for p in state['Players']))
     stop_set = {WALL, BOMB, BREAKABLE}
     for bom in bombs:
-        for i in range(1, radius + 1):
+        for i in range(1, radius):
             x = bom[0] + i
             y = bom[1]
             if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
-        for i in range(1, radius + 1):
+        for i in range(1, radius):
             x = bom[0] - i
             y = bom[1]
             if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
-        for i in range(1, radius + 1):
+        for i in range(1, radius):
             x = bom[0]
             y = bom[1] + i
             if board[x][y] in stop_set:
                 break
             board[x][y] = PFIRE
-        for i in range(1, radius + 1):
+        for i in range(1, radius):
             x = bom[0]
             y = bom[1] - i
             if board[x][y] in stop_set:
@@ -129,37 +130,48 @@ def escape_to_safety(state, board):
     return 'waiting for death... :/'
 
 
-def get_score(board, sq_x, sq_y, rad):
+def get_score(board, sq_x, sq_y, state):
+    rad = state['Radius']
+    curr_x, curr_y = state['X'], state['Y']
+    board[curr_x][curr_y] = SPACE
     score = 0
-    for i in range(1, rad + 1):
+    for i in range(1, rad):
         x = sq_x + i
         y = sq_y
         if board[x][y] == BREAKABLE:
             score += game_config['points_per_wall']
             break
+        elif board[x][y] in {WALL, BOMB}:
+            break
         elif board[x][y] == PLAYER:
             score += game_config['points_per_kill']
-    for i in range(1, rad + 1):
+    for i in range(1, rad):
         x = sq_x - i
         y = sq_y
         if board[x][y] == BREAKABLE:
             score += game_config['points_per_wall']
             break
+        elif board[x][y] in {WALL, BOMB}:
+            break
         elif board[x][y] == PLAYER:
             score += game_config['points_per_kill']
-    for i in range(1, rad + 1):
+    for i in range(1, rad):
         x = sq_x
         y = sq_y + i
         if board[x][y] == BREAKABLE:
             score += game_config['points_per_wall']
             break
+        elif board[x][y] in {WALL, BOMB}:
+            break
         elif board[x][y] == PLAYER:
             score += game_config['points_per_kill']
-    for i in range(1, rad + 1):
+    for i in range(1, rad):
         x = sq_x
         y = sq_y - i
         if board[x][y] == BREAKABLE:
             score += game_config['points_per_wall']
+            break
+        elif board[x][y] in {WALL, BOMB}:
             break
         elif board[x][y] == PLAYER:
             score += game_config['points_per_kill']
@@ -167,7 +179,7 @@ def get_score(board, sq_x, sq_y, rad):
 
 
 def find_richest_square(state, board):
-    print('escape')
+    print('find_richest_square')
     curr_x, curr_y = state['X'], state['Y']
     queue = [
         # (x, y, move to do, last direction)
@@ -177,10 +189,10 @@ def find_richest_square(state, board):
         (curr_x, curr_y - 1, 'up', 'down'),
     ]
     i = 0
-    score = get_score(board, curr_x, curr_y, state['Radius'])
+    score = get_score(board, curr_x, curr_y, state)
     # (x, y, score, action)
     best_found = (curr_x, curr_y, score, 'bomb')
-    while i < len(queue) and i < 30:
+    while i < min(len(queue), 60):
         sq_x = queue[i][0]
         sq_y = queue[i][1]
         move_to_do = queue[i][2]
@@ -188,7 +200,7 @@ def find_richest_square(state, board):
         i += 1
         if cant_walk(board, sq_x, sq_y):
             continue
-        score = get_score(board, sq_x, sq_y, state['Radius'])
+        score = get_score(board, sq_x, sq_y, state)
         if score > best_found[2]:
             best_found = (sq_x, sq_y, score, move_to_do)
 
@@ -200,26 +212,17 @@ def find_richest_square(state, board):
             queue.append((sq_x, sq_y + 1, move_to_do, 'up'))
         if direction != 'up':
             queue.append((sq_x, sq_y - 1, move_to_do, 'down'))
-    return score[3]  # return move_to_do
+    return best_found[3]  # return move_to_do
 
 
 def bounty_hunt(state, board):
+    print('bounty_hunt')
     curr_x, curr_y = state['X'], state['Y']
     global mem, game_config
-    counter_threshold = game_config['turns_to_explode'] + game_config['turns_to_flamout']
-    if mem['counter'] > 4 + counter_threshold \
-            and state['Bombs'] > 0:
-        mem['bomb'] = True
-        mem['counter'] = 0
-        return 'bomb'
-    else:
+    if mem['counter'] > game_config['_threshold']:
         return find_richest_square(state, board)
-        # choices = possible_choices(board, curr_x, curr_y)
-        # return random.choice(choices)
-
-
-
-# policko_v_pravo = state['Board'][curr_x + 1][curr_y]
+    else:
+        return 'idle...'
 
 
 def do_move(state):
@@ -227,9 +230,9 @@ def do_move(state):
     board = get_board(state)
     curr_x, curr_y = state['X'], state['Y']
     mem['counter'] += 1
-    if not mem['first_move']:
-        mem['first_move'] = True
-        mem['counter'] = 6
+    if mem['first_move']:
+        mem['first_move'] = False
+        mem['counter'] = game_config['_threshold']
         choices = possible_choices(board, curr_x, curr_y)
         return random.choice(choices)
     if is_dangerous(board, curr_x, curr_y) or mem['bomb']:
@@ -249,12 +252,14 @@ def on_message(ws, message):
     if 'points_per_wall' in state:
         # první zpráva obsahuje konfiguraci, ne stav hry
         game_config = state
+        game_config['_threshold'] = 3 + \
+                                    game_config['turns_to_explode'] + \
+                                    game_config['turns_to_flamout']
         print("Game config: ")
         print(game_config)
         ws.send('greetings')
         return
 
-    print("Game state: ")
     print(state)
 
     if not state['Alive']:
